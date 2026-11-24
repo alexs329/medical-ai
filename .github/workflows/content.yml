@@ -1,0 +1,38 @@
+name: Medical AI content collection
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/content.yml'
+      - 'tools/collect_articles.py'
+permissions:
+  contents: read
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate binary STL models
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import struct
+          files=list(Path("content/Anatomy").glob("*.stl"))
+          assert len(files)>=6
+          for p in files:
+              b=p.read_bytes()
+              assert len(b)>=84, p
+              n=struct.unpack_from("<I",b,80)[0]
+              assert n>0 and len(b)==84+50*n, p
+              print(p,n,"triangles")
+          PY
+      - name: Collect licensed articles
+        run: python3 tools/collect_articles.py
+      - name: Upload verified content package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: medical-ai-content
+          path: content/
+          if-no-files-found: error
